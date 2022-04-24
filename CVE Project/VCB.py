@@ -1,0 +1,164 @@
+# More information about the RoboDK API here:
+# https://robodk.com/doc/en/RoboDK-API.html
+# This file need to be used under RDK IDE environment, to download RDK simulator, visit: https://robodk.com/download
+from robolink import *    # API to communicate with RoboDK
+from robodk import *      # robodk robotics toolbox
+import cv2 as cv
+import numpy as np
+import transforms3d.euler as eul
+import time
+
+def read_camera_parameters(filepath = 'C:/Users/shaob/Desktop/CVE/intrinsicParameters/'):
+    cmtx = np.loadtxt(filepath + 'oneEyeCameraMatrixPix.txt')
+    dist = np.loadtxt(filepath + 'oneEyeCameraDistortionPix.txt')
+    return cmtx, dist
+
+
+def get_qr_coords(cmtx, dist, points):
+    # Selected coordinate points for each corner of QR code.
+    w = 50 # sensitivity factor
+    qr_edges = np.array([[0,0,0],
+                         [0,1,0],
+                         [1,1,0],
+                         [1,0,0]], dtype = 'float32').reshape((4,1,3)) * w
+
+    # determine the orientation of QR code coordinate system with respect to camera coorindate system.
+    ret, rvec, tvec = cv.solvePnP(qr_edges, points, cmtx, dist) # estimate the orientation of a 3D object in a 2D image.
+    rotationMatrix = cv.Rodrigues(rvec)[0]
+    homoMatrix = np.hstack((rotationMatrix, tvec))
+    homoMatrix = np.vstack((homoMatrix, np.array([0, 0, 0, 1])))
+    # euler = np.degrees(eul.mat2euler(rotationMatrix, axes='sxyz')) # xyz-euler angles
+    rpy = eul.mat2euler(-np.matrix(rotationMatrix).T, axes='szxy') # zxy-roll, pitch & yaw
+    rpy = np.flip(rpy)
+    camPosition = -np.matrix(rotationMatrix).T * np.matrix(tvec)
+    camPosition = np.ndarray.tolist(camPosition.reshape(3,))[0]
+    rpy = np.ndarray.tolist(np.squeeze(rpy))
+    pose = camPosition+rpy
+
+    # Define unit xyz axes. These are then projected to camera view using the rotation matrix and translation vector.
+    unitv_points = np.array([[0,0,0], [1,0,0], [0,1,0], [0,0,1]], dtype = 'float32').reshape((4,1,3)) * w
+    if ret:
+        points, jac = cv.projectPoints(unitv_points, rvec, tvec, cmtx, dist)
+        # Below is commented for later use in case needed
+        # print("Homogeneous Transformation Matrix:")
+        # print(homoMatrix, '\n')
+        # print("Euler Angles:")
+        # print(euler, '\n')
+        print("[Roll, Pitch, Yaw]:")
+        print(rpy, '\n')
+        print("Camera Position:")
+        print(camPosition, '\n')
+
+        return points, pose
+    # return empty arrays if rotation and translation values not found
+    else:
+        return []
+
+
+def show_axes(cmtx, dist, img):
+
+    qr = cv.QRCodeDetector()
+    ret_qr, points = qr.detect(img)
+
+    if ret_qr:
+        # axis point projects 3D coordinate points to a 2D plane
+        axis_points, objPose = get_qr_coords(cmtx, dist, points)  # points: Output vector of vertices of the minimum-area quadrangle containing the code.
+
+        # BGR color format
+        colors = [(0, 0, 255), (0, 255, 0), (255, 0, 0), (0,0,0)] # red: x-axis green: y-axis blue: z-axis
+
+        # check axes points are projected to camera view.
+        if len(axis_points) > 0:
+            axis_points = axis_points.reshape((4,2))
+            origin = (int(axis_points[0][0]),int(axis_points[0][1]) )
+
+            for p, c in zip(axis_points[1:], colors[:3]):
+                p = (int(p[0]), int(p[1]))
+
+                # Sometimes qr detector will make a mistake and projected point will overflow integer value. We skip these cases.
+                if origin[0] > 5*img.shape[1] or origin[1] > 5*img.shape[1]:break
+                if p[0] > 5*img.shape[1] or p[1] > 5*img.shape[1]:break
+
+                cv.line(img, origin, p, c, 5)
+        cv.imshow('frame', img)
+        return objPose
+    else:
+        return []
+
+    
+# RoboDK Simulation
+# Any interaction with RoboDK must be done through RDK:
+RDK = Robolink()
+
+# Select a robot (popup is displayed if more than one robot is available)
+robot = RDK.ItemUserPick('Select a robot', ITEM_TYPE_ROBOT)
+if not robot.Valid():
+    raise Exception('No robot selected or available')
+
+    
+# get the current position of the TCP with respect to the reference frame:
+# (4x4 matrix representing position and orientation)
+target_ref = robot.Pose()
+pos_ref = target_ref.Pos()
+target_last = target_ref
+target_init = Mat.eye(4).__mul__(roty(-90))
+pos_init= target_init.Pos()
+pos_init[2] += 500
+target_init.setPos(pos_init)
+
+
+# move the robot to the first point:
+robot.MoveJ(target_ref)
+
+# It is important to provide the reference frame and the tool frames when generating programs offline
+robot.setPoseFrame(robot.PoseFrame())
+robot.setPoseTool(robot.PoseTool())
+robot.setZoneData(10) # Set the rounding parameter (Also known as: CNT, APO/C_DIS, ZoneData, Blending radius, cornering, ...)
+robot.setSpeed(200) # Set linear speed in mm/s
+
+
+if __name__ == '__main__':
+
+    # read camera intrinsic parameters.
+    cmtx, dist = read_camera_parameters()
+
+    cam = 1 # 1 for external webcam, 0 for internal cam
+    cap = cv.VideoCapture(cam)
+    if not cap: print("!!!Failed VideoCapture: invalid camera source!!!")
+
+    while(True):
+        # capture frame-by-frame
+        ret, current_frame = cap.read()
+        if type(current_frame) == type(None):
+            print("!!!Couldn't read frame!!!")
+            break
+
+        QR_pose = show_axes(cmtx, dist, current_frame)
+        # print(QR_pose)
+        if len(QR_pose) is not 0:
+            QR_pose = TxyzRxyz_2_Pose(QR_pose)
+            target_QR = target_init.__mul__(QR_pose)
+            try:
+                diff = np.zeros(3)
+                last = Pose_2_TxyzRxyz(target_last)
+                tar = Pose_2_TxyzRxyz(target_QR)
+                diff[0] = tar[3]-last[3]
+                diff[1] = tar[4]-last[4]
+                diff[2] = tar[5]-last[5]
+                if(max(np.abs(diff))<8):
+                    robot.MoveL(target_QR)
+                    target_last = Mat(target_QR)
+            except:
+                print("Out of range")
+
+        time.sleep(0.2)
+        # if the `q` key was pressed, break from the loop
+        key = cv.waitKey(10) & 0xFF
+        if key == ord("q"): break
+
+    robot.MoveJ(target_ref)
+    # release the capture
+    cap.release()
+    cv.destroyAllWindows()
+
+
