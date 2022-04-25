@@ -5,6 +5,8 @@
 **Project Objective:** Use computer vision 3D reconstruction method to control robot manipulator. Robot can follow trajectories created by instructor from camera<br />
 <br />
 ![QR code orientation detection](Demo_Videos/output.gif)<br />
+Regonized QR code and its orientation and ouput x,y,z, roll, yaw, pitch coordinates<br />
 ![](Demo_Videos/final_demo.gif)<br />
+Take x,y,z, roll, yaw, pitch coordinates and calculate optimal inverse kinematic
 UR10e is used as demo robot<br />
 More details please visit: https://www.peizehong.com/vision-control-bot
