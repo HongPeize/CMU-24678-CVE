@@ -142,7 +142,7 @@ if __name__ == '__main__':
                 diff = np.zeros(3)
                 last = Pose_2_TxyzRxyz(target_last)
                 tar = Pose_2_TxyzRxyz(target_QR)
-                diff[0] = tar[3]-last[3]
+                diff[0] = tar[3]-last[3] # noise filter 
                 diff[1] = tar[4]-last[4]
                 diff[2] = tar[5]-last[5]
                 if(max(np.abs(diff))<8):
