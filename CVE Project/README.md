@@ -1,7 +1,7 @@
-Vision Control Bot<br />
-Keyword: Computer Vision, solvePnP, OpenCV, Forward/Inverse Kinematic, body transformation, robot manipulator 
-Team Members: Peize Hong, Shaobo Wang, Yicong Xiao, Dajun Tao
-Environment: RoboDK IDE
+##Vision Control Bot<br />
+Keyword: Computer Vision, solvePnP, OpenCV, Forward/Inverse Kinematic, body transformation, robot manipulator<br />
+Team Members: Peize Hong, Shaobo Wang, Yicong Xiao, Dajun Tao<br />
+Environment: RoboDK IDE<br />
 Project Objective: Use computer vision 3D reconstruction method to control robot manipulator. Robot can follow trajectories created by instructor from camera<br />
 <br />
 ![QR code orientation detection](Demo_Videos/output.gif)<br />
