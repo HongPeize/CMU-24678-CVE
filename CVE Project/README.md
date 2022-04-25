@@ -1,5 +1,5 @@
 # Vision Control Bot<br />
-**Keyword:** Computer Vision, solvePnP, OpenCV, Forward/Inverse Kinematic, body transformation, robot manipulator<br />
+**Keyword:** Computer Vision, solvePnP, OpenCV, 3D Reconstruction, Camera Calibration, Forward/Inverse Kinematic, body transformation, robot manipulator<br />
 **Carnegie Mellon University MEG24678 Final Project**<br />
 **Team Members:** Peize Hong, Shaobo Wang, Yicong Xiao, Dajun Tao<br />
 **Environment:** RoboDK IDE, Python 3.7, OpenCV <br />
